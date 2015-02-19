@@ -448,24 +448,26 @@ Post-Release Review Process
 
      XXX: This step should be automated. See `FLOC-1039 <https://clusterhq.atlassian.net/browse/FLOC-1039>`_.
 
-   * The node package (``flocker-node``) should be installed on all supported platforms.
-     You can use vagrant to boot a clean Fedora 20 machine as follows:
+   * The node package (``flocker-node``) should be installed and tested on all supported platforms.
+
+     The acceptance tests can be run using the ``run-acceptance-tests`` tool.
+     See :ref:`acceptance-testing` for details of the configuration files required for each platform.
 
      .. prompt:: bash $
 
-        mkdir /tmp/fedora20
-        cd /tmp/fedora20
-        vagrant init clusterhq/fedora20-updated
-        vagrant up
-        vagrant ssh
+        $ ./admin/run-acceptance-tests --distribution=fedora-20 --provider=vagrant
+        $ ./admin/run-acceptance-tests --distribution=fedora-20 --provider=aws --config-file=aws.config
+        $ ./admin/run-acceptance-tests --distribution=fedora-20 --provider=rackspace --config-file=rackspace.config
+        $ ./admin/run-acceptance-tests --distribution=fedora-20 --provider=digitalocean --config-file=digitalocean.config
 
-     Follow the :ref:`Flocker node installation documentation<installing-flocker-node>`.
+     XXX: This step should performed by BuildBot.
+     See `FLOC-1304 <https://clusterhq.atlassian.net/browse/FLOC-1304>`_.
 
-     XXX: These steps should be automated. See (
-     `FLOC-965 <https://clusterhq.atlassian.net/browse/FLOC-965>`_,
-     `FLOC-957 <https://clusterhq.atlassian.net/browse/FLOC-957>`_,
-     `FLOC-958 <https://clusterhq.atlassian.net/browse/FLOC-958>`_
-     ).
+     .. note::
+
+        DigitalOcean does not allow fine grained access control.
+        Use the dedicated testing account for running acceptance tests.
+        See LastPass for account details.
 
    * Follow the :doc:`../../indepth/tutorial/vagrant-setup` part of the tutorial to make sure that the Vagrant nodes start up correctly.
    * Follow the :doc:`ELK example documentation<../../indepth/examples/linking>` using a Linux client installation and Rackspace Fedora20 nodes.
