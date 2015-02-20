@@ -9,6 +9,7 @@ from functools import partial
 from ._libcloud import LibcloudProvisioner
 from ._install import (
     provision, run,
+    task_disable_firewall,
     task_install_digitalocean_kernel, DIGITALOCEAN_KERNEL
 )
 from ._common import Kernel
@@ -256,7 +257,7 @@ def provision_digitalocean(node, package_source, distribution, token):
         commands=provision(
             package_source=package_source,
             distribution=node.distribution,
-        )
+        ) + task_disable_firewall()
     )
     return node.address
 
