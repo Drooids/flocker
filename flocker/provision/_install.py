@@ -11,7 +11,7 @@ from textwrap import dedent
 from urlparse import urljoin
 from characteristic import attributes
 
-from ._common import PackageSource
+from ._common import PackageSource, Variants
 
 ZFS_REPO = ("https://s3.amazonaws.com/archive.zfsonlinux.org/"
             "fedora/zfs-release$(rpm -E %dist).noarch.rpm")
@@ -141,15 +141,36 @@ def task_enable_docker():
     ]
 
 
+def configure_firewalld(rule):
+    """
+    Configure firewalld with a given rule.
+
+    :param list rule: List of `firewall-cmd` arguments.
+    """
+    return [
+        Run.from_args(command + rule)
+        for command in [['firewall-cmd', '--permanent'],
+                        ['firewall-cmd']]
+    ]
+
+
 def task_disable_firewall():
     """
     Disable the firewall.
     """
-    rule = ['--add-rule', 'ipv4', 'filter', 'FORWARD', '0', '-j', 'ACCEPT']
-    return [
-        Run.from_args(['firewall-cmd', '--permanent', '--direct'] + rule),
-        Run.from_args(['firewall-cmd', '--direct'] + rule),
-    ]
+    return configure_firewalld(
+        ['--direct', '--add-rule', 'ipv4', 'filter',
+         'FORWARD', '0', '-j', 'ACCEPT'])
+
+
+def task_open_control_firewall():
+    """
+    Open the firewall for flocker-control.
+    """
+    return reduce(list.__add__, [
+        configure_firewalld(['--add-service', service])
+        for service in ['flocker-control-api', 'flocker-control-agent']
+    ])
 
 
 def task_create_flocker_pool_file():
@@ -230,16 +251,87 @@ def task_pull_docker_images(images=ACCEPTANCE_IMAGES):
     return [Run.from_args(['docker', 'pull', image]) for image in images]
 
 
-def provision(distribution, package_source):
+def task_enable_updates_testing(distribution):
+    """
+    Enable the distribution's proposed updates repository.
+
+    :param bytes distribution: See func:`task_install_flocker`
+    """
+    if distribution == 'fedora-20':
+        return [
+            Run.from_args(['yum', 'install', '-y', 'yum-utils']),
+            Run.from_args([
+                'yum-config-manager', '--enable', 'updates-testing'])
+        ]
+    else:
+        raise NotImplementedError
+
+
+def task_enable_docker_head_repository(distribution):
+    """
+    Enable the distribution's repository containing in-development docker
+    builds.
+
+    :param bytes distribution: See func:`task_install_flocker`
+    """
+    if distribution == 'fedora-20':
+        return [
+            Run.from_args(['yum', 'install', '-y', 'yum-utils']),
+            Run.from_args([
+                'yum-config-manager',
+                '--add-repo',
+                'https://copr.fedoraproject.org/coprs/lsm5/docker-io/repo/fedora-20/lsm5-docker-io-fedora-20.repo',  # noqa
+            ])
+        ]
+    elif distribution == "centos-7":
+        return [
+            Put(content=dedent("""\
+                [virt7-testing]
+                name=virt7-testing
+                baseurl=http://cbs.centos.org/repos/virt7-testing/x86_64/os/
+                enabled=1
+                gpgcheck=0
+                """),
+                path="/etc/yum.repos.d/virt7-testing.repo")
+        ]
+    else:
+        raise NotImplementedError
+
+
+def task_enable_zfs_testing(distribution):
+    """
+    Enable the zfs-testing repository.
+
+    :param bytes distribution: See func:`task_install_flocker`
+    """
+    if distribution == 'fedora-20':
+        return [
+            Run.from_args(['yum', 'install', '-y', 'yum-utils']),
+            Run.from_args([
+                'yum-config-manager', '--enable', 'zfs-testing'])
+        ]
+    else:
+        raise NotImplementedError
+
+
+def provision(distribution, package_source, variants):
     """
     Provision the node for running flocker.
 
     :param bytes address: Address of the node to provision.
     :param bytes username: Username to connect as.
-    :param bytes distribution: See func:`task_install`
-    :param PackageSource package_source: See func:`task_install`
+    :param bytes distribution: See func:`task_install_flocker`
+    :param PackageSource package_source: See func:`task_install_flocker`
+    :param set variants: The set of variant configurations to use when
+        provisioning
     """
     commands = []
+    if Variants.DISTRO_TESTING in variants:
+        commands += task_enable_updates_testing(distribution)
+    if Variants.DOCKER_HEAD in variants:
+        commands += task_enable_docker_head_repository(distribution)
+    if Variants.ZFS_TESTING in variants:
+        commands += task_enable_zfs_testing(distribution)
     commands += task_install_kernel_devel()
     commands += task_install_flocker(package_source=package_source,
                                      distribution=distribution)
